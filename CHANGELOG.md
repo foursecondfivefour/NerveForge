@@ -2,10 +2,13 @@
 
 ## 7.0.1
 
-- HTTP-запросы больше не печатаются в терминал: они пишутся в кольцевой буфер и отображаются во вкладке «Журнал» панели. Старое поведение включается `--verbose-http`.
-- Закрыт обход `/api/local-bootstrap` через подставные `Host`/`Origin` заголовки, проходящие через Tailscale Funnel. Токен теперь выдаёт только loopback-слушатель `127.0.0.1:8767/bootstrap`.
-- Полный доступ и удалённое армирование с кодовой фразой сохранены без изменений.
-- Добавлены API `/api/requests` и тесты на изоляцию bootstrap.
+- Добавлена полная нативная поддержка **Android (Termux aarch64)** и установщик `setup_termux.sh`.
+- Добавлены эндпоинты самодокументирования для ИИ-агентов: `/api/docs`, `/llms.txt` и `/api/agent-prompt`.
+- Обновлена документация (`README.md`, `AGENTS.md`, `docs/ARCHITECTURE.md`) с подробным руководством по использованию приёмника и интеграции с Arena.ai.
+- Набор unit-тестов расширен до 65 тестов (включая кроссплатформенные тесты для Android/Termux).
+- HTTP-запросы больше не печатаются в терминал: они пишутся в кольцевой буфер и отображаются во вкладке «Журнал» панели.
+- Закрыт обход `/api/local-bootstrap` через подставные `Host`/`Origin` заголовки. Токен выдаёт только loopback-слушатель `127.0.0.1:8767/bootstrap`.
+- Поддержка динамических лимитов данных до 40 МБ команд / 50 МБ вывода / 64 МБ тела запросов.
 
 ## 7.0.0
 
@@ -36,26 +39,3 @@
 - Added configurable maximum arm duration, retained idle expiration, and quick-off cancellation of active process trees.
 - Kept Windows project command execution fail-closed until a verified sandbox exists; Windows service mutation and elevation remain disabled.
 - Added cross-platform API, timer, shell selection, path, and cancellation tests plus Windows CI coverage.
-
-## 6.2.0
-
-- Reduced Linux Mint/Ubuntu installation to `bash setup.sh`: installs only missing dependencies, creates a launcher, and starts the app.
-- Rebuilt the responsive dashboard around a simpler connection flow, project actions, request queue, and collapsed high-risk controls.
-- Kept UI assets local and preserved local-only arming, approval gates, and sandbox boundaries.
-
-## 6.1.0
-
-- Rebranded Mint Chat Bridge as NerveForge; added the original forge-pillar mark, wordmark, and tagline.
-- Moved default config/data/helper/workspace paths to NerveForge names. Previous Mint paths are left untouched; user data is not moved or deleted automatically.
-- Added U.Ж.А.С., a locally armed, high-risk remote shell mode with bearer-token authentication, idle expiration, per-request timeouts, asynchronous job results, and an explicit `sudo -n` request flag.
-- Preserved Project YOLO's workspace confinement and approval-gated system actions.
-- Added API and UI documentation, tests, and a non-privileged setup helper.
-- Renamed entry-point/setup scripts to make their roles clearer.
-
-## 5.x
-
-- Added Project YOLO for allowlisted read-only diagnostics and a Bubblewrap-isolated project workspace.
-
-## 4.x
-
-- Added the separate loopback-only admin listener and approval-gated system actions.
