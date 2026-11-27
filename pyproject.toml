@@ -5,12 +5,12 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "nerveforge"
 version = "7.0.1"
-description = "Fast, lightweight local bridge and agent gateway for Linux and Windows"
+description = "Fast, lightweight async bridge between Arena.ai Agent Mode and local PC (Linux, Windows, Unity)"
 readme = "README.md"
 license = { file = "LICENSE" }
-authors = [{ name = "NerveForge Contributors" }]
+authors = [{ name = "DRCerg & NerveForge Contributors" }]
 requires-python = ">=3.10"
-keywords = ["agent", "bridge", "unity", "terminal", "cloudflare", "tailscale", "developer-tools"]
+keywords = ["arena-ai", "agent-mode", "bridge", "unity", "terminal", "cloudflare", "tailscale", "developer-tools", "ai-agent"]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Environment :: Console",
@@ -28,9 +28,9 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/nerveforge/nerveforge"
-Documentation = "https://github.com/nerveforge/nerveforge#readme"
-Issues = "https://github.com/nerveforge/nerveforge/issues"
+Homepage = "https://github.com/drcerg/nerveforge"
+Documentation = "https://github.com/drcerg/nerveforge#readme"
+Issues = "https://github.com/drcerg/nerveforge/issues"
 
 [project.scripts]
 nerveforge = "nerveforge.tunnel:main"
