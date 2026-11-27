@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="ru" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark light">
+  <meta name="theme-color" content="#0d1014">
+  <title>NerveForge — workbench</title>
+  <link rel="icon" href="/assets/nerveforge-mark.png" type="image/png">
+  <link rel="stylesheet" href="/static/app.css">
+  <script src="/static/app.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">К содержимому</a>
+
+  <header class="topbar">
+    <div class="brand">
+      <img src="/assets/nerveforge-mark.png" alt="">
+      <div class="brand-text"><b>NerveForge</b><small>WORKBENCH / v7</small></div>
+    </div>
+    <nav class="tabs" aria-label="Разделы">
+      <button class="tab active" data-tab="console" type="button">Терминал</button>
+      <button class="tab" data-tab="files" type="button">Файлы</button>
+      <button class="tab" data-tab="queue" type="button">Очередь <span id="queueCount" class="badge">0</span></button>
+      <button class="tab" data-tab="logs" type="button">Журнал</button>
+    </nav>
+    <div class="top-actions">
+      <span id="connPill" class="pill offline"><i></i><span id="connText">Не подключено</span></span>
+      <span id="osBadge" class="chip">ОС не определена</span>
+      <button id="themeToggle" class="icon-btn" type="button" title="Сменить тему" aria-label="Сменить тему">◐</button>
+    </div>
+  </header>
+
+  <div id="toastRegion" class="toast-region" aria-live="polite"></div>
+
+  <main id="main" class="page">
+
+    <section class="hero">
+      <div class="hero-copy">
+        <div class="eyebrow">ЛОКАЛЬНАЯ РАБОЧАЯ СТАНЦИЯ · ПОЛНЫЙ КОНТРОЛЬ</div>
+        <h1>Один экран.<br><span>Все рычаги.</span></h1>
+        <p id="heroHint">Подключитесь, затем откройте полный доступ для произвольных команд без подтверждений.</p>
+      </div>
+
+      <div id="accessCard" class="access-card">
+        <div class="access-head">
+          <span class="access-icon">⚡</span>
+          <div><b>Полный доступ</b><small>Произвольный shell без песочницы</small></div>
+          <span id="faState" class="state-pill off">ВЫКЛЮЧЕН</span>
+        </div>
+        <div class="access-body">
+          <label class="field">
+            <span>Кодовая фраза</span>
+            <input id="faPhrase" type="password" autocomplete="off" spellcheck="false" placeholder="yesiknow">
+          </label>
+          <label class="field small">
+            <span>Длительность, мин</span>
+            <input id="faMinutes" type="number" min="1" max="1440" value="120">
+          </label>
+          <button id="faButton" class="danger-btn" type="button">ВКЛЮЧИТЬ</button>
+        </div>
+        <div class="access-foot">
+          <span id="faTimer">Таймер не активен</span>
+          <button id="faStop" class="text-btn" type="button">Немедленно выключить</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="status-strip">
+      <article class="stat tunnel-stat">
+        <span class="stat-label">ТУННЕЛЬ / ДОСТУП</span>
+        <div class="tunnel-switcher">
+          <select id="tunnelSelect" class="tunnel-select" title="Выбор провайдера туннеля">
+            <option value="cloudflared">⚡ Cloudflare Quick Tunnel</option>
+            <option value="tailscale">🔒 Tailscale Funnel</option>
+            <option value="none">🏠 Только локально</option>
+          </select>
+          <button id="switchTunnelBtn" class="mini-btn primary" type="button">Применить</button>
+        </div>
+        <strong id="tunnelMode" style="display:none">—</strong>
+        <div class="stat-sub"><span id="tunnelUrl">нет</span> <button id="copyUrl" class="mini-btn" type="button">копировать</button></div>
+      </article>
+      <article class="stat">
+        <span class="stat-label">ТОКЕН</span>
+        <strong id="tokenMasked">••••••••••••</strong>
+        <div class="stat-sub"><button id="revealToken" class="mini-btn" type="button">показать</button> <button id="copyToken" class="mini-btn" type="button">копировать</button></div>
+      </article>
+      <article class="stat">
+        <span class="stat-label">РАБОЧАЯ ПАПКА</span>
+        <strong id="workspaceRoot" class="truncate">—</strong>
+        <div class="stat-sub" id="capabilityLine">возможности загружаются…</div>
+      </article>
+    </section>
+
+    <div class="connect-bar">
+      <label class="sr-only" for="tokenInput">Токен доступа</label>
+      <input id="tokenInput" type="password" autocomplete="off" spellcheck="false" placeholder="Токен (для удалённой панели)">
+      <button id="connectBtn" class="quiet-btn" type="button">Подключить</button>
+      <button id="forgetBtn" class="quiet-btn" type="button">Забыть</button>
+      <span class="connect-note">Локальная панель подключается сама. Токен хранится в этом браузере.</span>
+    </div>
+
+    <section class="panel current" data-panel="console">
+      <div class="panel-head">
+        <div><span class="panel-icon">›_</span><h2>Командная консоль</h2></div>
+        <div class="head-note" id="cmdStatus">Ожидание команды</div>
+      </div>
+      <div class="console-toolbar">
+        <label class="field compact"><span>Shell</span><select id="shellSelect"></select></label>
+        <label class="field compact grow"><span>Рабочая папка</span><input id="cwdInput" placeholder="по умолчанию — домашняя папка"></label>
+        <label class="field compact tiny"><span>Таймаут, с</span><input id="timeoutInput" type="number" min="1" max="3600" value="120"></label>
+      </div>
+      <div class="command-line">
+        <span class="prompt">$</span>
+        <input id="commandInput" class="command-input" spellcheck="false" placeholder="Например: git status или Get-ChildItem">
+        <button id="runBtn" class="primary-btn" type="button">Выполнить ↵</button>
+        <button id="stopBtn" class="danger-btn small" type="button" disabled>Стоп</button>
+      </div>
+      <div class="quick-row" id="quickCommands"></div>
+      <pre id="output" class="terminal" aria-live="polite">// вывод команд появится здесь</pre>
+    </section>
+
+    <section class="panel" data-panel="files">
+      <div class="panel-head">
+        <div><span class="panel-icon">▤</span><h2>Файлы проекта</h2></div>
+        <label class="toggle"><input id="yoloToggle" type="checkbox"><span></span>Песочница YOLO</label>
+      </div>
+      <div class="files-grid">
+        <div class="file-browser">
+          <div class="file-toolbar">
+            <input id="fileSearch" type="search" placeholder="Фильтр…">
+            <button id="fileUp" class="mini-btn" type="button">↑</button>
+            <button id="fileRefresh" class="mini-btn" type="button">↻</button>
+          </div>
+          <div class="path-line"><span id="filePath">.</span></div>
+          <div id="fileList" class="file-list"></div>
+          <div class="manual-open">
+            <label class="sr-only" for="filePathInput">Путь к файлу</label>
+            <input id="filePathInput" value="." placeholder="путь внутри рабочей папки">
+            <button id="fileOpen" class="mini-btn" type="button">Открыть</button>
+          </div>
+        </div>
+        <div class="editor">
+          <div class="editor-head"><b id="editorName">Файл не выбран</b><span id="editorStatus"></span></div>
+          <textarea id="editorContent" class="code-editor" spellcheck="false" placeholder="Файл откроется здесь"></textarea>
+          <div class="editor-foot"><span>UTF-8 · до 256 KiB · бэкап при перезаписи</span><button id="editorSave" class="primary-btn" type="button">Сохранить</button></div>
+          <div class="sandbox-run">
+            <input id="sandboxCommand" placeholder="команда в Bubblewrap (Linux)">
+            <button id="sandboxRun" class="quiet-btn" type="button">Запустить в песочнице</button>
+          </div>
+          <pre id="sandboxOutput" class="small-output"></pre>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" data-panel="queue">
+      <div class="panel-head">
+        <div><span class="panel-icon">✓</span><h2>Запросы на подтверждение</h2></div>
+        <div class="head-note">Команды из чата ждут вашего решения</div>
+      </div>
+      <div id="queueList" class="queue-list"></div>
+    </section>
+
+    <section class="panel" data-panel="logs">
+      <div class="panel-head">
+        <div><span class="panel-icon">≡</span><h2>Журналы</h2></div>
+        <div class="head-note">HTTP-запросы больше не сыплются в терминал</div>
+      </div>
+      <div class="logs-grid">
+        <div class="log-card">
+          <div class="log-head">
+            <b>HTTP-запросы</b>
+            <div class="log-tools">
+              <label class="sr-only" for="requestFilter">Фильтр запросов</label>
+              <input id="requestFilter" type="search" placeholder="Фильтр/path">
+              <button id="refreshRequests" class="mini-btn" type="button">↻</button>
+            </div>
+          </div>
+          <div id="requestList" class="events"></div>
+        </div>
+        <div class="log-card">
+          <div class="log-head">
+            <b>События аудита</b>
+            <button id="refreshEvents" class="mini-btn" type="button">↻</button>
+          </div>
+          <div id="eventsList" class="events"></div>
+        </div>
+      </div>
+    </section>
+
+    <aside class="public-warning" role="alert">
+      <b>Публичная загрузка Unity-файлов включена без токена.</b>
+      <span>Любой, кто знает адрес, может создать новый .cs или .shader в корне рабочей папки. Unity компилирует C#-файлы и может выполнять editor-скрипты. Endpoints: POST /api/public/scripts и /api/public/assets.</span>
+    </aside>
+
+    <footer class="footer"><span>NerveForge · Build boldly. Ship cleverly.</span><span>Локальные ассеты · без внешних зависимостей</span></footer>
+  </main>
+</body>
+</html>
