@@ -271,6 +271,8 @@ $('faStop').addEventListener('click', async () => {
 function fillQuickCommands(os) {
   const commands = os === 'windows'
     ? ['Get-Location', 'Get-ChildItem', 'git status', 'tailscale status', 'systeminfo', 'ipconfig /all']
+    : os === 'android'
+    ? ['pwd', 'ls -la', 'termux-battery-status', 'getprop ro.build.version.release', 'uname -a', 'df -h']
     : ['pwd', 'ls -la', 'git status', 'tailscale status', 'uname -a', 'df -h'];
   const holder = $('quickCommands');
   holder.replaceChildren();

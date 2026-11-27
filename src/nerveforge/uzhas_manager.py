@@ -61,17 +61,17 @@ def build_argv(command: str, shell: str | None = None, sudo: bool = False) -> li
                 raise UzhasError("Не найден PowerShell (pwsh.exe или powershell.exe)")
             return [executable, "-NoLogo", "-NoProfile", "-NonInteractive", "-Command", command]
         raise UzhasError("На Windows поддерживаются только PowerShell и CMD")
-    if chosen != "bash":
-        raise UzhasError("В Linux поддерживается Bash")
-    bash = shutil.which("bash")
-    if not bash:
-        raise UzhasError("Не найден bash")
-    if sudo:
-        sudo_bin = shutil.which("sudo")
-        if not sudo_bin:
-            raise UzhasError("Запрошен sudo, но команда sudo не найдена")
-        return [sudo_bin, "-n", bash, "-c", command]
-    return [bash, "-lc", command]
+    if chosen in ("bash", "sh", "zsh"):
+        executable = shutil.which(chosen) or (f"/data/data/com.termux/files/usr/bin/{chosen}" if Path(f"/data/data/com.termux/files/usr/bin/{chosen}").is_file() else None) or shutil.which("sh") or shutil.which("bash")
+        if not executable:
+            raise UzhasError(f"Не найден {chosen}")
+        if sudo:
+            sudo_bin = shutil.which("sudo") or shutil.which("tsu") or shutil.which("su")
+            if not sudo_bin:
+                raise UzhasError("Запрошен sudo, но команда sudo/tsu/su не найдена")
+            return [sudo_bin, "-c", f"{executable} -c '{command}'"] if "su" in sudo_bin else [sudo_bin, "-n", executable, "-c", command]
+        return [executable, "-lc", command]
+    raise UzhasError(f"Оболочка {chosen!r} не поддерживается")
 
 
 def _child_environment() -> dict[str, str]:
