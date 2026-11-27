@@ -1,4 +1,4 @@
-# NerveForge 7.0.1 ⚡ Arena.ai ↔ PC & Android Bridge
+# NerveForge 7.0.3 ⚡ Arena.ai ↔ PC & Android Bridge
 
 ![NerveForge — Build boldly. Ship cleverly.](assets/nerveforge-lockup.png)
 
