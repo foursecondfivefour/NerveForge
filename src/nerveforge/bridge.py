@@ -92,6 +92,72 @@ TOKEN = load_token()
 
 
 
+
+AGENT_DOCS_MARKDOWN = """# NerveForge AI Agent Gateway
+
+NerveForge bridges AI agents on Arena.ai (Agent Mode) to the local developer workstation (Linux / Windows / Unity).
+
+## Quick Start for AI Agents
+
+1. **Authentication:**
+   Include header in all protected requests: `Authorization: Bearer <TOKEN>`
+
+2. **Discover Host & Status:**
+   `GET /api/quick`
+   Returns OS ('linux'/'windows'), default shell, full access status ('armed': true/false), tunnel URL, and data limits.
+
+3. **Execute Shell Commands (Full Access):**
+   `POST /api/full-access/run`
+   Body: `{"command": "echo hello", "timeout_seconds": 30, "shell": "bash", "cwd": "/optional/path"}`
+   Response: `{"ok": true, "id": "<job_id>", "status": "queued"}`
+
+   Poll result:
+   `GET /api/full-access/jobs/<job_id>`
+   Wait until `status` is 'done' or 'error', then read `output` and `return_code`.
+
+4. **Stop Running Processes (Emergency Kill Switch):**
+   `POST /api/full-access/stop`
+   Terminates all running child process trees immediately.
+
+5. **File Operations in Workspace:**
+   - `POST /api/workspace/list` with `{"path": "."}`
+   - `POST /api/workspace/read` with `{"path": "file.cs"}`
+   - `POST /api/workspace/write` with `{"path": "file.cs", "content": "..."}`
+
+6. **Unity Script Generation (Public / Open):**
+   - `POST /api/public/scripts` with `{"filename": "Player.cs", "content": "..."}`
+   - `POST /api/public/assets` with `{"filename": "Glow.shader", "content": "..."}`
+
+7. **Dynamic Limits & Tunnel Control:**
+   - `GET /api/limits` / `POST /api/limits` with `{"max_command_mb": 40, "max_output_mb": 50}`
+   - `POST /api/tunnel/config` with `{"mode": "tailscale"|"cloudflared"|"none"}`
+"""
+
+
+def get_agent_prompt() -> dict:
+    return {
+        "system_instruction": "You are connected to the user's PC via NerveForge bridge. You can execute shell commands, edit files, and build/compile projects. Use POST /api/full-access/run to dispatch commands and GET /api/full-access/jobs/<id> to poll output. Write files using POST /api/workspace/write.",
+        "base_headers": {
+            "Authorization": "Bearer <TOKEN>",
+            "Content-Type": "application/json"
+        },
+        "endpoints": {
+            "quick_status": "GET /api/quick",
+            "docs": "GET /api/docs",
+            "run_command": "POST /api/full-access/run",
+            "get_job": "GET /api/full-access/jobs/<id>",
+            "stop_processes": "POST /api/full-access/stop",
+            "workspace_list": "POST /api/workspace/list",
+            "workspace_read": "POST /api/workspace/read",
+            "workspace_write": "POST /api/workspace/write",
+            "public_unity_script": "POST /api/public/scripts",
+            "public_unity_asset": "POST /api/public/assets",
+            "limits": "GET/POST /api/limits",
+            "tunnel_switch": "POST /api/tunnel/config"
+        },
+        "full_access_phrase": FULL_ACCESS_PHRASE
+    }
+
 def get_limits() -> dict:
     return {
         "max_command_bytes": MAX_COMMAND,
@@ -620,6 +686,10 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_bytes((ASSET_DIR / "nerveforge-mark.png").read_bytes(), "image/png")
             except OSError:
                 return self.send_json({"error": "brand asset unavailable"}, 404)
+        if path in ("/llms.txt", "/api/docs", "/docs"):
+            return self.send_bytes(AGENT_DOCS_MARKDOWN.encode("utf-8"), "text/markdown; charset=utf-8")
+        if path == "/api/agent-prompt":
+            return self.send_json(get_agent_prompt())
         if path == "/api/health":
             return self.send_json({"ok": True, "service": "nerveforge"})
         if not self.authorized():

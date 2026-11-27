@@ -1,57 +1,134 @@
-# Agent instructions for NerveForge
+# Инструкция для ИИ-агентов (Arena.ai ↔ PC Bridge)
 
-## Start here
+Этот документ предназначен для ИИ-агентов (Arena.ai Agent Mode, Claude, ChatGPT, Gemini и др.), подключающихся к удалённому ПК пользователя через шлюз **NerveForge**.
 
-Before changing code, read `README.md`, `SECURITY.md`, and the relevant page under `docs/`. Treat the tests and current implementation as authoritative if prose appears stale. Keep changes focused; do not restore archived or removed versions.
+---
 
-## Product and platform boundaries
+## 1. Как агенту обнаружить хост и начать работу
 
-- Preserve the NerveForge UI design and keep frontend assets self-hosted in `static/` unless a task explicitly requests otherwise.
-- The receiver binds to loopback. `run.py` coordinates the receiver and the configured tunnel process.
-- Windows supports file access in the selected workspace and shell selection for the separately armed U.Ж.А.С. feature. **Project workspace command execution must remain fail-closed on Windows** until a verified sandbox exists.
-- U.Ж.А.С. is distinct from Project YOLO and from public Unity asset upload. It must stay locally armed, time-limited, bearer-authenticated, and quick-off capable.
-- If NerveForge is launched elevated on Windows, child processes inherit administrator privileges. Do not add automatic elevation or services without an explicit requirement.
-- Do not add server-side Unity execution or editor automation. Unity integration here means creating files only.
+Пользователь предоставляет вам **URL туннеля** (например, `https://sample-subdomain.trycloudflare.com`) и **Bearer-токен** авторизации.
 
-## v7.0.0 additions — read before changing access control
-
-- Tailscale Funnel is the primary tunnel; Cloudflare is optional fallback. Keep `--tunnel auto|tailscale|cloudflared|none` and the local-only mode working.
-- Full access is deliberately armable through the bearer API with the exact phrase `yesiknow`. The phrase is a UI guard, not authentication. Preserve timers, quick-off and audit metadata.
-- File operations unlock on either Project YOLO **or** full access. Windows project command execution stays fail-closed; use the full-access shell there.
-- Keep the dark theme as default in the panel and all frontend assets local.
-
-## Public Unity upload boundary — read before touching upload code
-
-NerveForge 6.3.2 intentionally has unauthenticated, public, write-only routes:
-
-- `POST /api/public/scripts`: create a new `.cs` file.
-- `POST /api/public/assets`: create a new `.cs` or `.shader` file.
-
-Both write only a simple filename in the configured workspace root, never overwrite, cap files at 64 KiB, and share limits of 5 requests/minute and 30/hour. They do not grant read, delete, overwrite, or command access. CORS is public for these two routes only. These restrictions do **not** make uploaded C# safe: Unity compiles it and editor scripts can execute code.
-
-- Keep every other API bearer-protected (except intentionally loopback-only health/bootstrap behavior).
-- Do not broaden anonymous upload to arbitrary extensions, paths, reads, deletes, overwrites, or command execution without a separate explicit design decision and tests.
-- Keep startup and panel warnings in sync with behavior and update `README.md`, `SECURITY.md`, and tests whenever this boundary changes.
-- Never place real tokens, tunnel URLs paired with credentials, or personal paths in docs, logs, fixtures, or examples.
-
-## Engineering workflow
-
-- Keep the application standard-library-only unless dependency changes are explicitly approved.
-- Validate paths with `workspace_manager.safe_path`; reject traversal, symlinks, and Windows reparse points.
-- Keep writes atomic and bounded. Public create-only writes must not overwrite existing files.
-- Avoid platform-specific assumptions in shared code. Windows behavior must have tests and a Windows CI step.
-- Do not claim Windows or Unity runtime validation from Linux unit tests.
-- Bump `VERSION`, update `CHANGELOG.md`, and keep installation/security docs consistent for user-facing behavior changes.
-
-## Checks
-
-From the repository root:
-
+### Шаг 1: Проверка статуса хоста
+Выполните `GET /api/quick`:
 ```bash
-python3 -m unittest discover -s tests -v
-python3 -m compileall -q src tests run.py
-node --check static/app.js
-bash -n setup.sh
+curl -H "Authorization: Bearer <TOKEN>" https://<TUNNEL_URL>/api/quick
 ```
 
-The GitHub Actions workflow additionally runs on `windows-latest` and parses `setup_windows.ps1`. For Windows-sensitive changes, report whether the actual Windows CI result is known; mocks on Linux are not a substitute.
+**Ответ содержит:**
+* `platform.os` — целевая ОС (`linux` или `windows`).
+* `platform.default_shell` — основная оболочка (`bash` или `powershell`).
+* `platform.workspace_root` — рабочая папка (например, `Assets` Unity-проекта).
+* `full_access.armed` — статус полного доступа (`true` / `false`).
+* `limits` — максимальные размеры команд (40 МБ) и вывода (50 МБ).
+
+---
+
+## 2. Выполнение системных команд (Full Access Shell)
+
+Когда `full_access.armed == true`, вы можете запускать произвольные команды в терминале:
+
+### Отправка команды
+`POST /api/full-access/run`
+Заголовки:
+* `Authorization: Bearer <TOKEN>`
+* `Content-Type: application/json`
+
+Тело запроса:
+```json
+{
+  "command": "uname -a && uptime",
+  "timeout_seconds": 30,
+  "shell": "bash",
+  "cwd": null
+}
+```
+
+Сервер возвращает `202 Accepted`:
+```json
+{
+  "ok": true,
+  "id": "e4f8b2c1-3a5d-4f1e-9b2c-8d1a3e5f7a9b",
+  "status": "queued"
+}
+```
+
+### Опрос результата выполнения
+`GET /api/full-access/jobs/<id>`
+
+Повторяйте запрос с интервалом 0.3–0.5 сек, пока `status` не станет `done` или `error`:
+```json
+{
+  "id": "e4f8b2c1-3a5d-4f1e-9b2c-8d1a3e5f7a9b",
+  "status": "done",
+  "return_code": 0,
+  "output": "Linux 7.0.0-42-generic ...
+"
+}
+```
+
+---
+
+## 3. Работа с файлами проекта (Workspace)
+
+* **Список файлов:** `POST /api/workspace/list` с `{"path": "."}`
+* **Чтение файла:** `POST /api/workspace/read` с `{"path": "Assets/Player.cs"}`
+* **Запись файла:** `POST /api/workspace/write` с `{"path": "Assets/Player.cs", "content": "..."}`  
+  *(Предыдущая версия файла автоматически сохраняется в бэкап).*
+
+---
+
+## 4. Генерация ассетов для Unity (Без токена)
+
+Если требуется только создать новый C#-скрипт или шейдер в открытом проекте Unity:
+* `POST /api/public/scripts` — создание `.cs` скрипта: `{"filename": "FpsController.cs", "content": "..."}`
+* `POST /api/public/assets` — создание `.shader` или `.cs`: `{"filename": "CustomGlow.shader", "content": "..."}`
+
+---
+
+## 5. Готовый Python-клиент для агента (Copy & Run)
+
+Агент может сразу скопировать и запустить этот код в своём окружении:
+
+```python
+import urllib.request, json, time, ssl
+
+TOKEN = "ВАШ_ТОКЕН"
+BASE = "https://ВАШ_ТУННЕЛЬ.trycloudflare.com"
+CTX = ssl.create_default_context()
+
+def run_cmd(command: str, timeout: int = 30) -> tuple[int, str]:
+    """Асинхронный запуск команды на ПК через NerveForge с опросом результата."""
+    data = json.dumps({"command": command, "timeout_seconds": timeout}).encode("utf-8")
+    req = urllib.request.Request(
+        f"{BASE}/api/full-access/run", data=data,
+        headers={"Authorization": f"Bearer {TOKEN}", "Content-Type": "application/json"}
+    )
+    with urllib.request.urlopen(req, context=CTX, timeout=10) as resp:
+        job_id = json.loads(resp.read().decode("utf-8"))["id"]
+    
+    start = time.time()
+    while time.time() - start < timeout + 5:
+        poll_req = urllib.request.Request(
+            f"{BASE}/api/full-access/jobs/{job_id}",
+            headers={"Authorization": f"Bearer {TOKEN}"}
+        )
+        with urllib.request.urlopen(poll_req, context=CTX, timeout=10) as resp:
+            job = json.loads(resp.read().decode("utf-8"))
+        if job.get("status") in ("done", "error", "failed", "timeout", "cancelled"):
+            return job.get("return_code", -1), job.get("output", "")
+        time.sleep(0.4)
+    return -1, "Timeout polling command execution"
+
+# Пример использования:
+code, output = run_cmd("git status")
+print(f"Exit code: {code}
+Output:
+{output}")
+```
+
+---
+
+## 6. Встроенные эндпоинты самодокументирования
+
+* `GET /api/docs` или `GET /llms.txt` — возвращает полное текстовое руководство в Markdown.
+* `GET /api/agent-prompt` — возвращает структурированный JSON с описанием всех маршрутов и базовым промптом.
